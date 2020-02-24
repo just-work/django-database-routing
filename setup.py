@@ -1,7 +1,7 @@
-from distutils.core import setup
+from setuptools import setup
 
 setup(
-    name='django_master_slave',
+    name='django-database-routing',
     version='1.0',
     packages=['database_routing'],
     url='https://github.com/just-work/django-database-routing',
@@ -10,4 +10,5 @@ setup(
     author_email='zimbler@gmail.com',
     description='''Provides master-slave routing
         and force master context manager for Django'''
+
 )
