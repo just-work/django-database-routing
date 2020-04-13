@@ -4,6 +4,8 @@ django-database-routing
 Provides Master/Slave database router for Django.
 See https://docs.djangoproject.com/en/dev/topics/db/multi-db/#an-example for example implementation.
 
+![build](https://github.com/just-work/django-database-routing/workflows/build/badge.svg?branch=master)
+
 Configuration
 -------------
 1. Add router to settings.py
