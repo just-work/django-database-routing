@@ -11,6 +11,7 @@ from testapp.models import Project, Tag, Task
 class DBRoutingTestCase(TestCase):
     """ Database router test. """
 
+    multi_db = True
     databases = {'default', 'slave', 'tag_master', 'tag_slave'}
 
     def test_default_master_write(self):
