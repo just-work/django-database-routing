@@ -12,93 +12,93 @@ class DBRoutingTestCase(TestCase):
     """ Database router test. """
 
     multi_db = True
-    databases = {'default', 'slave', 'tag_master', 'tag_slave'}
+    databases = {'default', 'slave', 'tag_primary', 'tag_replica'}
 
-    def test_default_master_write(self):
-        """ Default master write test. """
+    def test_default_primary_write(self):
+        """ Default primary write test. """
         project = Project.objects.create(name='test', id=1)
 
-        master_qs = Project.objects.using('default').all()
-        slave_qs = Project.objects.using('slave').all()
+        primary_qs = Project.objects.using('default').all()
+        replica_qs = Project.objects.using('slave').all()
 
-        self.assertEqual(master_qs.count(), 1)
-        self.assertEqual(master_qs.first(), project)
-        self.assertEqual(slave_qs.count(), 0)
+        self.assertEqual(primary_qs.count(), 1)
+        self.assertEqual(primary_qs.first(), project)
+        self.assertEqual(replica_qs.count(), 0)
 
-    def test_default_slave_read(self):
-        """ Default slave read test. """
+    def test_default_replica_read(self):
+        """ Default replica read test. """
         project = Project.objects.using('slave').create(name='test', id=1)
 
-        master_qs = Project.objects.using('default').all()
-        slave_qs = Project.objects.all()  # read from slave
+        primary_qs = Project.objects.using('default').all()
+        replica_qs = Project.objects.all()  # read from replica
 
-        self.assertEqual(master_qs.count(), 0)
-        self.assertEqual(slave_qs.count(), 1)
-        self.assertEqual(slave_qs.first(), project)
+        self.assertEqual(primary_qs.count(), 0)
+        self.assertEqual(replica_qs.count(), 1)
+        self.assertEqual(replica_qs.first(), project)
 
-    def test_master_write__if_defined_for_model(self):
-        """ Master write test, overridden for model. """
+    def test_primary_write__if_defined_for_model(self):
+        """ Primary write test, overridden for model. """
         tag = Tag.objects.create(title='test', id=1)
 
-        master_qs = Tag.objects.using('tag_master').all()
-        slave_qs = Tag.objects.using('tag_slave').all()
+        primary_qs = Tag.objects.using('tag_primary').all()
+        replica_qs = Tag.objects.using('tag_replica').all()
 
-        self.assertEqual(master_qs.count(), 1)
-        self.assertEqual(master_qs.first(), tag)
-        self.assertEqual(slave_qs.count(), 0)
+        self.assertEqual(primary_qs.count(), 1)
+        self.assertEqual(primary_qs.first(), tag)
+        self.assertEqual(replica_qs.count(), 0)
 
-    def test_slave_read__if_defined_for_model(self):
-        """ Slave read test, overridden for model."""
-        tag = Tag.objects.using('tag_slave').create(title='test', id=1)
+    def test_replica_read__if_defined_for_model(self):
+        """ Replica read test, overridden for model."""
+        tag = Tag.objects.using('tag_replica').create(title='test', id=1)
 
-        master_qs = Tag.objects.using('tag_master').all()
-        slave_qs = Tag.objects.all()  # read from Tag_slave
+        primary_qs = Tag.objects.using('tag_primary').all()
+        replica_qs = Tag.objects.all()  # read from Tag_replica
 
-        self.assertEqual(master_qs.count(), 0)
-        self.assertEqual(slave_qs.count(), 1)
-        self.assertEqual(slave_qs.first(), tag)
+        self.assertEqual(primary_qs.count(), 0)
+        self.assertEqual(replica_qs.count(), 1)
+        self.assertEqual(replica_qs.first(), tag)
 
-    def test_context_manager_force_master_read(self):
-        """ Context manager test for reading from the master. """
+    def test_context_manager_force_primary_read(self):
+        """ Context manager test for reading from the primary. """
         project = Project.objects.using('default').create(name='test', id=1)
 
         with ForceMasterRead():
-            master_count = Project.objects.all().count()
-            master_project = Project.objects.get(id=project.id)
+            primary_count = Project.objects.all().count()
+            primary_project = Project.objects.get(id=project.id)
 
-        self.assertEqual(master_count, 1)
-        self.assertEqual(master_project, project)
+        self.assertEqual(primary_count, 1)
+        self.assertEqual(primary_project, project)
 
-    def test_decorator_force_master_read(self):
-        """ Decorator test for reading from master. """
+    def test_decorator_force_primary_read(self):
+        """ Decorator test for reading from primary. """
         project = Project.objects.using('default').create(name='test', id=1)
 
         @force_master_read
-        def read_from_master(project_id: int) -> (int, Any):
+        def read_from_primary(project_id: int) -> (int, Any):
             count = Project.objects.all().count()
             obj = Project.objects.get(id=project_id)
             return count, obj
 
-        master_count, master_project = read_from_master(project.id)
+        primary_count, primary_project = read_from_primary(project.id)
 
-        self.assertEqual(master_count, 1)
-        self.assertEqual(master_project, project)
+        self.assertEqual(primary_count, 1)
+        self.assertEqual(primary_project, project)
 
-    def test_class_decorator_force_master_read(self):
-        """ Class decorator test for reading from master. """
+    def test_class_decorator_force_primary_read(self):
+        """ Class decorator test for reading from primary. """
         project = Project.objects.using('default').create(name='test', id=1)
 
         @force_master_read_method(methods=['read'])
-        class MasterReader:
+        class PrimaryReader:
             def read(self, project_id: int) -> (int, Any):
                 count = Project.objects.all().count()
                 obj = Project.objects.get(id=project_id)
                 return count, obj
 
-        master_count, master_project = MasterReader().read(project.id)
+        primary_count, primary_project = PrimaryReader().read(project.id)
 
-        self.assertEqual(master_count, 1)
-        self.assertEqual(master_project, project)
+        self.assertEqual(primary_count, 1)
+        self.assertEqual(primary_project, project)
 
     def test_allowed_relation__if_from_one_db(self):
         """ Test relations, if objects are from one DB. """
@@ -108,7 +108,7 @@ class DBRoutingTestCase(TestCase):
 
     def test_denied_relation__if_from_different_db(self):
         """ Error relation test if objects are from different DB. """
-        project = Project.objects.create(name='default db', id=1)
+        project = Project.objects.create(name='primary db', id=1)
         tag = Tag.objects.create(title='tag db')
 
         with self.assertRaises(ValueError):

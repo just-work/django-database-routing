@@ -76,26 +76,26 @@ WSGI_APPLICATION = 'testproject.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'default.sqlite3'),
+        'NAME': os.path.join(BASE_DIR, 'primary.sqlite3'),
     },
     'slave': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'slave.sqlite3'),
+        'NAME': os.path.join(BASE_DIR, 'replica.sqlite3'),
     },
-    'tag_master': {
+    'tag_primary': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'tag_master.sqlite3'),
+        'NAME': os.path.join(BASE_DIR, 'tag_primary.sqlite3'),
     },
-    'tag_slave': {
+    'tag_replica': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'tag_slave.sqlite3'),
+        'NAME': os.path.join(BASE_DIR, 'tag_replica.sqlite3'),
     }
 }
 
 MASTER_SLAVE_ROUTING = {
     'testapp.tag': {
-        'read': 'tag_slave',
-        'write': 'tag_master'
+        'read': 'tag_replica',
+        'write': 'tag_primary'
     }
 }
 

@@ -128,7 +128,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .idea
-/testproject/slave.sqlite3
-/testproject/default.sqlite3
-/testproject/tag_master.sqlite3
-/testproject/tag_slave.sqlite3
+/testproject/primary.sqlite3
+/testproject/replica.sqlite3
+/testproject/tag_primary.sqlite3
+/testproject/tag_replica.sqlite3
