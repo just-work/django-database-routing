@@ -1,6 +1,8 @@
 from typing import Any
 
 from django.conf import settings
+from django.db import models
+from django.db.models import Subquery
 from django.test import TestCase
 
 from database_routing import (ForceMasterRead,
@@ -168,3 +170,47 @@ class DBRoutingTestCase(TestCase):
 
         self.assertTrue(allow_relation)
         self.assertFalse(deny_relation)
+
+    def test_filter_for_diff_db(self):
+        """ Filter by related field from different DB. """
+        project = Project.objects.create(name='primary db', id=1)
+        Task.objects.create(name='default', project=project)
+
+        with ForceMasterRead():
+            tasks = Task.objects.filter(project__tags__isnull=True)
+            tags = tasks.first().project.tags.all()
+
+            self.assertEqual(len(tags), 0)
+
+    def test_values_for_diff_db(self):
+        """ Getting the values of a related field from different DB. """
+        project = Project.objects.create(name='primary db', id=1)
+        Task.objects.create(name='default', project=project)
+
+        with ForceMasterRead():
+            values = Project.objects.values('tags__title')
+
+            self.assertEqual(values[0]['tags__title'], None)
+
+    def test_subquery_for_diff_db(self):
+        """ Test subquery from different DB. """
+        tag = Tag.objects.create(title='my tag')
+        project = Project.objects.create(name='primary db', id=1)
+        task = Task.objects.create(name='my task', project=project)
+
+        tags = Tag.objects.using('tag_primary').filter(
+            pk=tag.pk
+        ).values('title')
+        tasks = Task.objects.using('default').filter(
+            pk=task.pk
+        ).values('name')
+
+        with ForceMasterRead():
+            project = Project.objects.annotate(
+                tag_title=Subquery(tags, output_field=models.CharField()),
+                task_name=Subquery(tasks, output_field=models.CharField())
+            ).first()
+
+        self.assertEqual(tags[0]['title'], 'my tag')
+        self.assertEqual(project.task_name, 'my task')
+        self.assertEqual(project.tag_title, None)  # since different DB
