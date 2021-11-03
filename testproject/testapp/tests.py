@@ -1,10 +1,12 @@
 from typing import Any
 
+from django.conf import settings
 from django.test import TestCase
 
 from database_routing import (ForceMasterRead,
                               force_master_read,
-                              force_master_read_method)
+                              force_master_read_method,
+                              MasterSlaveRouter)
 from testapp.models import Project, Tag, Task
 
 
@@ -13,6 +15,9 @@ class DBRoutingTestCase(TestCase):
 
     multi_db = True
     databases = {'default', 'slave', 'tag_primary', 'tag_replica'}
+
+    def setUp(self) -> None:
+        self.router = MasterSlaveRouter()
 
     def test_default_primary_write(self):
         """ Default primary write test. """
@@ -113,3 +118,53 @@ class DBRoutingTestCase(TestCase):
 
         with self.assertRaises(ValueError):
             project.tags.add(tag)
+
+    def test_get_default_db_config(self):
+        """ Test of DB configuration retrieval. """
+        default_config = self.router.get_db_config(Project)
+        custom_config = self.router.get_db_config(Tag)
+
+        expected = settings.MASTER_SLAVE_ROUTING['testapp.tag']
+
+        self.assertEqual(default_config, {})
+        self.assertEqual(custom_config, expected)
+
+    def test_get_db_for_read(self):
+        """ Test of getting the DB for reading. """
+        default_db = self.router.db_for_read(Project)
+        custom_db = self.router.db_for_read(Tag)
+
+        expected = settings.MASTER_SLAVE_ROUTING['testapp.tag']['read']
+
+        self.assertEqual(default_db, 'slave')
+        self.assertEqual(custom_db, expected)
+
+    def test_get_db_for_write(self):
+        """ Test of getting a DB for writing. """
+        default_db = self.router.db_for_write(Project)
+        custom_db = self.router.db_for_write(Tag)
+
+        expected = settings.MASTER_SLAVE_ROUTING['testapp.tag']['write']
+
+        self.assertEqual(default_db, 'default')
+        self.assertEqual(custom_db, expected)
+
+    def test_allow_syncdb(self):
+        """ Test of schema creation."""
+        write_db = self.router.allow_syncdb('default', Project)
+        read_db = self.router.allow_syncdb('slave', Project)
+        custom_write_db = self.router.allow_syncdb('tag_primary', Tag)
+        custom_read_db = self.router.allow_syncdb('tag_replica', Tag)
+
+        self.assertTrue(write_db)
+        self.assertFalse(read_db)
+        self.assertTrue(custom_write_db)
+        self.assertFalse(custom_read_db)
+
+    def test_allow_relation(self):
+        """ Relations are allowed only from one DB. """
+        allow_relation = self.router.allow_relation(Project, Task)
+        deny_relation = self.router.allow_relation(Project, Tag)
+
+        self.assertTrue(allow_relation)
+        self.assertFalse(deny_relation)
