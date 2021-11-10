@@ -1,11 +1,10 @@
-# coding: utf-8
 import functools
 
 from django.db import connections
 from django.conf import settings
 
 
-class MasterSlaveRouter(object):
+class MasterSlaveRouter:
     """Django database router for Master/Slave replication scheme support.
 
     Example configuration:
@@ -68,7 +67,7 @@ class MasterSlaveRouter(object):
         return db_for_write_1 == db_for_write_2
 
 
-class ForceMasterRead(object):
+class ForceMasterRead:
     """ Context manager that switches all reads to Master database.
 
     """
@@ -120,7 +119,7 @@ def force_master_read_method(methods=()):
     Example:
 
     @force_master_read_methods(methods=['do_some_update'])
-    class MyModelUpdater(object):
+    class MyModelUpdater:
 
         def do_some_update(self):
             # reading obj from Master database
