@@ -1,7 +1,7 @@
 from typing import Any
 
 from django.conf import settings
-from django.db import models
+from django.db import models, router as db_router
 from django.db.models import Subquery
 from django.test import TestCase
 
@@ -165,8 +165,8 @@ class DBRoutingTestCase(TestCase):
 
     def test_allow_relation(self):
         """ Relations are allowed only from one DB. """
-        allow_relation = self.router.allow_relation(Project, Task)
-        deny_relation = self.router.allow_relation(Project, Tag)
+        allow_relation = db_router.allow_relation(Project, Task)
+        deny_relation = db_router.allow_relation(Project, Tag)
 
         self.assertTrue(allow_relation)
         self.assertFalse(deny_relation)
@@ -214,3 +214,24 @@ class DBRoutingTestCase(TestCase):
         self.assertEqual(tags[0]['title'], 'my tag')
         self.assertEqual(project.task_name, 'my task')
         self.assertEqual(project.tag_title, None)  # since different DB
+
+    def test_allow_migrate(self):
+        """ Migrate are allowed for all DB. """
+        self.assertTrue(db_router.allow_migrate('default', 'testapp'))
+        self.assertTrue(db_router.allow_migrate('slave', 'testapp'))
+        self.assertTrue(db_router.allow_migrate('tag_primary', 'testapp'))
+        self.assertTrue(db_router.allow_migrate('tag_replica', 'testapp'))
+
+    def test_allow_migrate_model(self):
+        """ Migrate model are allowed for all DB. """
+        self.assertTrue(db_router.allow_migrate_model('default', Project))
+        self.assertTrue(db_router.allow_migrate_model('default', Tag))
+
+        self.assertTrue(db_router.allow_migrate_model('slave', Project))
+        self.assertTrue(db_router.allow_migrate_model('slave', Tag))
+
+        self.assertTrue(db_router.allow_migrate_model('tag_primary', Project))
+        self.assertTrue(db_router.allow_migrate_model('tag_primary', Tag))
+
+        self.assertTrue(db_router.allow_migrate_model('tag_replica', Project))
+        self.assertTrue(db_router.allow_migrate_model('tag_replica', Tag))
