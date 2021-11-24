@@ -4,29 +4,30 @@ from django.db import connections
 from django.conf import settings
 
 
-class MasterSlaveRouter:
-    """Django database router for Master/Slave replication scheme support.
+class PrimaryReplicaRouter:
+    """Django database router for Primary/Replica replication scheme support.
 
     Example configuration:
 
-    MASTER_SLAVE_ROUTING = {
+    PRIMARY_REPLICA_ROUTING = {
         'my_app.MySQLModel': {
-            'read': 'mysql_slave',
+            'read': 'mysql_replica',
             'write': 'mysql_default'
         },
-        'postgre_app': {
-            'read': 'psql_slave',
-            'write': 'psql_master
+        'postgres_app': {
+            'read': 'psql_replica',
+            'write': 'psql_primary'
+        }
     }
 
-    DATABASE_ROUTERS = ['database_routing.MasterSlaveRouter']
+    DATABASE_ROUTERS = ['database_routing.PrimaryReplicaRouter']
 
-    If model is not present in MASTER_SLAVE_ROUTING setting, returns
-    'default' connection for write and 'slave' connection for read
+    If model is not present in PRIMARY_REPLICA_ROUTING setting, returns
+    'default' connection for write and 'replica' connection for read
     """
     _lookup_cache = {}
 
-    default_read = 'slave'
+    default_read = 'replica'
     default_write = 'default'
 
     def get_db_config(self, model):
@@ -36,7 +37,7 @@ class MasterSlaveRouter:
         model_label = '%s.%s' % (app_label, model_name)
 
         if model_label not in self._lookup_cache:
-            conf = getattr(settings, 'MASTER_SLAVE_ROUTING', {})
+            conf = getattr(settings, 'PRIMARY_REPLICA_ROUTING', {})
 
             if model_label in conf:
                 result = conf[model_label]
@@ -67,36 +68,36 @@ class MasterSlaveRouter:
         return db_for_write_1 == db_for_write_2
 
 
-class ForceMasterRead:
-    """ Context manager that switches all reads to Master database.
+class ForcePrimaryRead:
+    """ Context manager that switches all reads to Primary database.
 
     """
 
     def __enter__(self):
-        """ Sets Master as db_for_read
+        """ Sets Primary as db_for_read
 
         :return: write-enabled connection
         """
-        self._prev_read = MasterSlaveRouter.default_read
-        MasterSlaveRouter.default_read = MasterSlaveRouter.default_write
-        return connections[MasterSlaveRouter.default_read]
+        self._prev_read = PrimaryReplicaRouter.default_read
+        PrimaryReplicaRouter.default_read = PrimaryReplicaRouter.default_write
+        return connections[PrimaryReplicaRouter.default_read]
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """ Resets db_for_read to it's previous value."""
-        MasterSlaveRouter.default_read = self._prev_read
+        PrimaryReplicaRouter.default_read = self._prev_read
 
 
-def force_master_read(func):
-    """ Decorates a func with ForceMasterRead context.
+def force_primary_read(func):
+    """ Decorates a func with ForcePrimaryRead context.
 
-    :param func: any callable that needs to do reads from Master DB
+    :param func: any callable that needs to do reads from Primary DB
     :returns: decorated function
 
     Example:
 
-    @force_master_read
+    @force_primary_read
     def do_some_update():
-        # reading obj from Master database
+        # reading obj from Primary database
         obj = MyModel.objects.first()
         obj.field = 'value'
         obj.save()
@@ -104,31 +105,31 @@ def force_master_read(func):
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        with ForceMasterRead():
+        with ForcePrimaryRead():
             return func(*args, **kwargs)
 
     return wrapper
 
 
-def force_master_read_method(methods=()):
-    """ Decorates some methods of class with ForceMasterRead context.
+def force_primary_read_method(methods=()):
+    """ Decorates some methods of class with ForcePrimaryRead context.
 
      :param methods: list-like, names of methods need to be decorated
     :returns decorated class
 
     Example:
 
-    @force_master_read_methods(methods=['do_some_update'])
-    class MyModelUpdater:
+    @force_primary_read_methods(methods=['do_some_update'])
+    class MyModelUpdater(object):
 
         def do_some_update(self):
-            # reading obj from Master database
+            # reading obj from Primary database
             obj = MyModel.objects.first()
             obj.field = 'value'
             obj.save()
 
         def do_other_update(self):
-            # reading obj from Slave database
+            # reading obj from Replica database
             obj = MyModel.objects.last()
             obj.field = 'dirty'
             obj.save()
@@ -137,9 +138,9 @@ def force_master_read_method(methods=()):
 
     def decorator(cls):
         for m in methods:
-            # decorate methods with force_master_read decorator
+            # decorate methods with force_primary_read decorator
             if hasattr(cls, m):
-                setattr(cls, m, force_master_read(getattr(cls, m)))
+                setattr(cls, m, force_primary_read(getattr(cls, m)))
         return cls
 
     return decorator
