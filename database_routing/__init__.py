@@ -1,11 +1,10 @@
-# coding: utf-8
 import functools
 
 from django.db import connections
 from django.conf import settings
 
 
-class PrimaryReplicaRouter(object):
+class PrimaryReplicaRouter:
     """Django database router for Primary/Replica replication scheme support.
 
     Example configuration:
@@ -69,7 +68,7 @@ class PrimaryReplicaRouter(object):
         return db_for_write_1 == db_for_write_2
 
 
-class ForcePrimaryRead(object):
+class ForcePrimaryRead:
     """ Context manager that switches all reads to Primary database.
 
     """
