@@ -5,10 +5,10 @@ from django.db import models, router as db_router
 from django.db.models import Subquery
 from django.test import TestCase
 
-from database_routing import (ForceMasterRead,
-                              force_master_read,
-                              force_master_read_method,
-                              MasterSlaveRouter)
+from database_routing import (ForcePrimaryRead,
+                              force_primary_read,
+                              force_primary_read_method,
+                              PrimaryReplicaRouter)
 from testapp.models import Project, Tag, Task
 
 
@@ -16,17 +16,17 @@ class DBRoutingTestCase(TestCase):
     """ Database router test. """
 
     multi_db = True
-    databases = {'default', 'slave', 'tag_primary', 'tag_replica'}
+    databases = {'default', 'replica', 'tag_primary', 'tag_replica'}
 
     def setUp(self) -> None:
-        self.router = MasterSlaveRouter()
+        self.router = PrimaryReplicaRouter()
 
     def test_default_primary_write(self):
         """ Default primary write test. """
         project = Project.objects.create(name='test', id=1)
 
         primary_qs = Project.objects.using('default').all()
-        replica_qs = Project.objects.using('slave').all()
+        replica_qs = Project.objects.using('replica').all()
 
         self.assertEqual(primary_qs.count(), 1)
         self.assertEqual(primary_qs.first(), project)
@@ -34,7 +34,7 @@ class DBRoutingTestCase(TestCase):
 
     def test_default_replica_read(self):
         """ Default replica read test. """
-        project = Project.objects.using('slave').create(name='test', id=1)
+        project = Project.objects.using('replica').create(name='test', id=1)
 
         primary_qs = Project.objects.using('default').all()
         replica_qs = Project.objects.all()  # read from replica
@@ -69,7 +69,7 @@ class DBRoutingTestCase(TestCase):
         """ Context manager test for reading from the primary. """
         project = Project.objects.using('default').create(name='test', id=1)
 
-        with ForceMasterRead():
+        with ForcePrimaryRead():
             primary_count = Project.objects.all().count()
             primary_project = Project.objects.get(id=project.id)
 
@@ -80,7 +80,7 @@ class DBRoutingTestCase(TestCase):
         """ Decorator test for reading from primary. """
         project = Project.objects.using('default').create(name='test', id=1)
 
-        @force_master_read
+        @force_primary_read
         def read_from_primary(project_id: int) -> (int, Any):
             count = Project.objects.all().count()
             obj = Project.objects.get(id=project_id)
@@ -95,7 +95,7 @@ class DBRoutingTestCase(TestCase):
         """ Class decorator test for reading from primary. """
         project = Project.objects.using('default').create(name='test', id=1)
 
-        @force_master_read_method(methods=['read'])
+        @force_primary_read_method(methods=['read'])
         class PrimaryReader:
             def read(self, project_id: int) -> (int, Any):
                 count = Project.objects.all().count()
@@ -126,7 +126,7 @@ class DBRoutingTestCase(TestCase):
         default_config = self.router.get_db_config(Project)
         custom_config = self.router.get_db_config(Tag)
 
-        expected = settings.MASTER_SLAVE_ROUTING['testapp.tag']
+        expected = settings.PRIMARY_REPLICA_ROUTING['testapp.tag']
 
         self.assertEqual(default_config, {})
         self.assertEqual(custom_config, expected)
@@ -136,9 +136,9 @@ class DBRoutingTestCase(TestCase):
         default_db = self.router.db_for_read(Project)
         custom_db = self.router.db_for_read(Tag)
 
-        expected = settings.MASTER_SLAVE_ROUTING['testapp.tag']['read']
+        expected = settings.PRIMARY_REPLICA_ROUTING['testapp.tag']['read']
 
-        self.assertEqual(default_db, 'slave')
+        self.assertEqual(default_db, 'replica')
         self.assertEqual(custom_db, expected)
 
     def test_get_db_for_write(self):
@@ -146,7 +146,7 @@ class DBRoutingTestCase(TestCase):
         default_db = self.router.db_for_write(Project)
         custom_db = self.router.db_for_write(Tag)
 
-        expected = settings.MASTER_SLAVE_ROUTING['testapp.tag']['write']
+        expected = settings.PRIMARY_REPLICA_ROUTING['testapp.tag']['write']
 
         self.assertEqual(default_db, 'default')
         self.assertEqual(custom_db, expected)
@@ -154,7 +154,7 @@ class DBRoutingTestCase(TestCase):
     def test_allow_syncdb(self):
         """ Test of schema creation."""
         write_db = self.router.allow_syncdb('default', Project)
-        read_db = self.router.allow_syncdb('slave', Project)
+        read_db = self.router.allow_syncdb('replica', Project)
         custom_write_db = self.router.allow_syncdb('tag_primary', Tag)
         custom_read_db = self.router.allow_syncdb('tag_replica', Tag)
 
@@ -176,7 +176,7 @@ class DBRoutingTestCase(TestCase):
         project = Project.objects.create(name='primary db', id=1)
         Task.objects.create(name='default', project=project)
 
-        with ForceMasterRead():
+        with ForcePrimaryRead():
             tasks = Task.objects.filter(project__tags__isnull=True)
             tags = tasks.first().project.tags.all()
 
@@ -187,7 +187,7 @@ class DBRoutingTestCase(TestCase):
         project = Project.objects.create(name='primary db', id=1)
         Task.objects.create(name='default', project=project)
 
-        with ForceMasterRead():
+        with ForcePrimaryRead():
             values = Project.objects.values('tags__title')
 
             self.assertEqual(values[0]['tags__title'], None)
@@ -205,7 +205,7 @@ class DBRoutingTestCase(TestCase):
             pk=task.pk
         ).values('name')
 
-        with ForceMasterRead():
+        with ForcePrimaryRead():
             project = Project.objects.annotate(
                 tag_title=Subquery(tags, output_field=models.CharField()),
                 task_name=Subquery(tasks, output_field=models.CharField())
@@ -218,7 +218,7 @@ class DBRoutingTestCase(TestCase):
     def test_allow_migrate(self):
         """ Migrate are allowed for all DB. """
         self.assertTrue(db_router.allow_migrate('default', 'testapp'))
-        self.assertTrue(db_router.allow_migrate('slave', 'testapp'))
+        self.assertTrue(db_router.allow_migrate('replica', 'testapp'))
         self.assertTrue(db_router.allow_migrate('tag_primary', 'testapp'))
         self.assertTrue(db_router.allow_migrate('tag_replica', 'testapp'))
 
@@ -227,8 +227,8 @@ class DBRoutingTestCase(TestCase):
         self.assertTrue(db_router.allow_migrate_model('default', Project))
         self.assertTrue(db_router.allow_migrate_model('default', Tag))
 
-        self.assertTrue(db_router.allow_migrate_model('slave', Project))
-        self.assertTrue(db_router.allow_migrate_model('slave', Tag))
+        self.assertTrue(db_router.allow_migrate_model('replica', Project))
+        self.assertTrue(db_router.allow_migrate_model('replica', Tag))
 
         self.assertTrue(db_router.allow_migrate_model('tag_primary', Project))
         self.assertTrue(db_router.allow_migrate_model('tag_primary', Tag))
