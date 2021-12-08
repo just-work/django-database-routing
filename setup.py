@@ -63,6 +63,9 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     packages=['database_routing'],
+    install_requres=[
+        'Django'
+    ],
     url='https://github.com/just-work/django-database-routing',
     license='Apache License v2.0',
     author='tumbler',
