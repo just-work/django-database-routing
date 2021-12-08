@@ -78,7 +78,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': os.path.join(BASE_DIR, 'primary.sqlite3'),
     },
-    'slave': {
+    'replica': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': os.path.join(BASE_DIR, 'replica.sqlite3'),
     },
@@ -92,14 +92,14 @@ DATABASES = {
     }
 }
 
-MASTER_SLAVE_ROUTING = {
+PRIMARY_REPLICA_ROUTING = {
     'testapp.tag': {
         'read': 'tag_replica',
         'write': 'tag_primary'
     }
 }
 
-DATABASE_ROUTERS = ['database_routing.MasterSlaveRouter']
+DATABASE_ROUTERS = ['database_routing.PrimaryReplicaRouter']
 
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
