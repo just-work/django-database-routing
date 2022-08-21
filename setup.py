@@ -71,6 +71,23 @@ setup(
     author='tumbler',
     author_email='zimbler@gmail.com',
     description='''Provides primary-replica routing
-        and force primary context manager for Django'''
-
+        and force primary context manager for Django''',
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Environment :: Console',
+        'Framework :: Django :: 2.2',
+        'Framework :: Django :: 3.0',
+        'Framework :: Django :: 3.1',
+        'Framework :: Django :: 3.2',
+        'Framework :: Django :: 4.0',
+        'Framework :: Django :: 4.1',
+        'Operating System :: POSIX',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        ('Topic :: Internet :: WWW/HTTP :: Dynamic Content :: '
+         'Content Management System'),
+    ]
 )
