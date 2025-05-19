@@ -1,14 +1,65 @@
 import functools
+import random
 
 from django.db import connections
 from django.conf import settings
 
 
 class PrimaryReplicaRouter:
-    """Django database router for Primary/Replica replication scheme support.
-
+    """
+    Django database router for Primary/Replica replication scheme support.
     Example configuration:
 
+    DEFAULT_DB = 'default'
+
+    REPLICA_DATABASES = ['replica1', 'replica2']
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': name,
+            'USER': user,
+            'PASSWORD': password,
+            'HOST': 'host_1,host_2,host_3',
+            'PORT': port,
+            'OPTIONS': {
+                'target_session_attrs': 'read-write',  # Connect only to the primary
+            }
+        },
+        'replica1': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': name,
+            'USER': user,
+            'PASSWORD': password,
+            'HOST': 'host_1,host_2,host_3',
+            'PORT': port,
+            'OPTIONS': {
+                'target_session_attrs': 'read-only',  # Connect to any
+            }
+        },
+        'replica2': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': name,
+            'USER': user,
+            'PASSWORD': password,
+            'HOST': 'host_1,host_2,host_3',
+            'PORT': port,
+            'OPTIONS': {
+                'target_session_attrs': 'read-only',  # Connect to any
+            }
+        },
+
+    }
+
+    Basic configuration option
+    PRIMARY_REPLICA_ROUTING = {
+        'all_project': {
+            'read': 'replica',  # Reading is done from a replica
+            'write': 'default'  # Writing is done to the primary database
+        }
+    }
+
+    Configuration option with separate models for different databases
     PRIMARY_REPLICA_ROUTING = {
         'my_app.MySQLModel': {
             'read': 'mysql_replica',
@@ -20,18 +71,23 @@ class PrimaryReplicaRouter:
         }
     }
 
-    DATABASE_ROUTERS = ['database_routing.PrimaryReplicaRouter']
+    DATABASE_ROUTERS = ["tvplus.balancer_db.PrimaryReplicaRouter"]
 
-    If model is not present in PRIMARY_REPLICA_ROUTING setting, returns
-    'default' connection for write and 'replica' connection for read
+    If the model is not present in the PRIMARY_REPLICA_ROUTING settings,
+    it returns the 'default' connection for write operations or a random replica for read operations.
+
+    https://docs.djangoproject.com/en/3.2/topics/db/multi-db/#an-example
+    https://github.com/just-work/django-database-routing/tree/master
     """
     _lookup_cache = {}
 
     default_read = 'replica'
     default_write = 'default'
 
+    replicas = getattr(settings, 'REPLICA_DATABASES', [])
+
     def get_db_config(self, model):
-        """ Returns the database configuration for `model`."""
+        """Returns the database configuration for `model`."""
         app_label = model._meta.app_label
         model_name = model._meta.model_name
         model_label = '%s.%s' % (app_label, model_name)
@@ -48,11 +104,19 @@ class PrimaryReplicaRouter:
             self._lookup_cache[model_label] = result
         return self._lookup_cache[model_label]
 
+    def get_random_replica(self):
+        """Returns a random replica for read operations."""
+        if not self.replicas:
+            return self.default_read
+        return random.choice(self.replicas)
+
     def db_for_read(self, model, **hints):
+        """Returns the database name for read operations."""
         db_config = self.get_db_config(model)
-        return db_config.get('read', self.default_read)
+        return db_config.get('read', self.get_random_replica())
 
     def db_for_write(self, model, **hints):
+        """Returns the database name for write operations."""
         db_config = self.get_db_config(model)
         return db_config.get('write', self.default_write)
 
